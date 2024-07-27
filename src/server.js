@@ -152,15 +152,17 @@ app.listen(apiport, () => {
                 console.log("CITAUTH-SYS returned hello to api.")
                 syscon.hello_flag = true;
                 status = true;
+                console.log("CITAUTH-API-SERVER is now listening at: ", apiport);
             }
             else {
                 console.log("CITAUTH-SYS didn't return anything, connection failed.");
-                syscon.hello_flag = false;
-                status = false;
+                return;
             }
         })
-
-        console.log("CITAUTH-API-SERVER is now listening at: ", apiport);
+        .catch((err) => {
+            console.error("Couldn't establish connection to CITAUTH-SYS. Start aborted");
+            console.error(err);
+        })
         
     })
 
