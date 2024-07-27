@@ -21,6 +21,29 @@ app.get('/', (req, res) => {
 //authenticate user
 app.get('/api/user', (req, res) => {
 
+    if(!status) {
+        res.status(503).send();
+        return;
+    }
+
+    if(req.body.uuid == undefined) {
+        res.status(400).send();
+        return;
+    }
+
+    syscon.authenticate(req.body.uuid)
+    .then((result) => {
+        if(result) {
+            res.status(200).send();
+        }
+        else {
+            res.status(404).send();
+        }
+    })
+    .catch((err) => {
+        res.status(500).send(err);
+    });
+    
 });
 
 //register user
