@@ -50,6 +50,20 @@ class SysConnection {
         })
     }
 
+    authenticate(uuid) {
+        return new Promise((resolve, reject) => {
+            this.sock.write("AUTh:",uuid,'\n');
+            this.sock.once('data', (data) => {
+                if(data.toString() == "AUTH_SUCCESS:",uuid,'\n') {
+                    resolve(true);
+                }
+                else {
+                    resolve(false);
+                }
+            })
+        })
+    }
+
     
 }
 
