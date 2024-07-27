@@ -43,12 +43,43 @@ app.get('/api/user', (req, res) => {
     .catch((err) => {
         res.status(500).send(err);
     });
-    
+
 });
 
 //register user
 app.post('/api/user', (req, res) => {
+    if(!status) {
+        res.status(503).send();
+        return;
+    }
+    if(req.body.email == undefined) {
+        res.status(400).send('email required');
+        return;
+    }
 
+    if(req.body.uuid == undefined) {
+        res.status(400).send('uuid required');
+        return;
+    }
+
+    if(length(req.body.uuid) != 32) {
+        res.status(400).send('wrong length of uuid');
+        return;
+    }
+
+    syscon.register(email, uuid)
+    .then((result) => {
+        if(result) {
+            res.status(200).send();
+        }
+        else {
+            res.status(400).send();
+        }
+    })
+    .catch((err) => {
+        res.status(500).send(err);
+    });
+    
 });
 
 //delete user
