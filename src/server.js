@@ -18,6 +18,31 @@ app.get('/', (req, res) => {
     res.status(200).send("CITAUTH API SERVER");
 });
 
+//authenticate user
+app.get('/api/user', (req, res) => {
+
+});
+
+//register user
+app.post('/api/user', (req, res) => {
+
+});
+
+//delete user
+app.delete('/api/user', (req, res) => {
+
+});
+
+//email authentication
+app.post('/api/pre', (req, res) => {
+
+});
+
+//check status of api
+app.get(('/api/status', (req, res) => {
+    
+}))
+
 app.listen(apiport, () => {
     console.log('\n----------------------------------------------------------------------------------------------\n',
         " #####    ######  ######## ######   ##   ##  ######## ### ###           ######   ######    ######\n",
