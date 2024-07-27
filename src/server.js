@@ -21,16 +21,100 @@ app.get('/', (req, res) => {
 //authenticate user
 app.get('/api/user', (req, res) => {
 
+    if(!status) {
+        res.status(503).send();
+        return;
+    }
+
+    if(req.body.uuid == undefined) {
+        res.status(400).send();
+        return;
+    }
+
+    syscon.authenticate(req.body.uuid)
+    .then((result) => {
+        if(result) {
+            res.status(200).send();
+        }
+        else {
+            res.status(404).send();
+        }
+    })
+    .catch((err) => {
+        res.status(500).send(err);
+    });
+
 });
 
 //register user
 app.post('/api/user', (req, res) => {
+    if(!status) {
+        res.status(503).send();
+        return;
+    }
+    if(req.body.email == undefined) {
+        res.status(400).send('email required');
+        return;
+    }
+
+    if(req.body.uuid == undefined) {
+        res.status(400).send('uuid required');
+        return;
+    }
+
+    if(length(req.body.uuid) != 32) {
+        res.status(400).send('wrong length of uuid');
+        return;
+    }
+
+    syscon.register(email, uuid)
+    .then((result) => {
+        if(result) {
+            res.status(200).send();
+        }
+        else {
+            res.status(400).send();
+        }
+    })
+    .catch((err) => {
+        res.status(500).send(err);
+    });
 
 });
 
 //delete user
 app.delete('/api/user', (req, res) => {
+    if(!status) {
+        res.status(503).send();
+        return;
+    }
+    if(req.body.email == undefined) {
+        res.status(400).send('email required');
+        return;
+    }
 
+    if(req.body.uuid == undefined) {
+        res.status(400).send('uuid required');
+        return;
+    }
+
+    if(length(req.body.uuid) != 32) {
+        res.status(400).send('wrong length of uuid');
+        return;
+    }
+
+    syscon.delete(email, uuid)
+    .then((result) => {
+        if(result) {
+            res.status(200).send();
+        }
+        else {
+            res.status(400).send();
+        }
+    })
+    .catch((err) => {
+        res.status(500).send(err);
+    })
 });
 
 //email authentication
@@ -68,15 +152,17 @@ app.listen(apiport, () => {
                 console.log("CITAUTH-SYS returned hello to api.")
                 syscon.hello_flag = true;
                 status = true;
+                console.log("CITAUTH-API-SERVER is now listening at: ", apiport);
             }
             else {
                 console.log("CITAUTH-SYS didn't return anything, connection failed.");
-                syscon.hello_flag = false;
-                status = false;
+                return;
             }
         })
-
-        console.log("CITAUTH-API-SERVER is now listening at: ", apiport);
+        .catch((err) => {
+            console.error("Couldn't establish connection to CITAUTH-SYS. Start aborted");
+            console.error(err);
+        })
         
     })
 

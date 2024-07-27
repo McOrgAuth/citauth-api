@@ -52,7 +52,10 @@ class SysConnection {
 
     authenticate(uuid) {
         return new Promise((resolve, reject) => {
-            this.sock.write("AUTh:",uuid,'\n');
+            setTimeout(() => {
+                reject('timeout');
+            }, 3000);
+            this.sock.write("AUTH:",uuid,'\n');
             this.sock.once('data', (data) => {
                 if(data.toString() == "AUTH_SUCCESS:",uuid,'\n') {
                     resolve(true);
@@ -64,6 +67,41 @@ class SysConnection {
         })
     }
 
+    register(email, uuid) {
+        return new Promise((resolve, reject) => {
+            setTimeout(() => {
+                reject('timeout');
+            }, 3000);
+            this.sock.write("RGST:",email,'|',uuid,'\n');
+            this.sock.once('data', (data) => {
+                if(data.toString() == "RGST_SUCCESS:",email,'|',uuid,'\n') {
+                    resolve(true);
+                }
+                else {
+                    resolve(false);
+                }
+            })
+        })
+    }
+
+    delete(email, uuid) {
+        return new Promise((resolve, reject) => {
+            setTimeout(() => {
+                reject('timeout')
+            }, 3000);
+            this.sock.write("DELT:",email,'|',uuid,'\n');
+            this.sock.once('data', (data) => {
+                if(data.toString() == "DELT_SUCCESS:",email,'|',uuid,'\n') {
+                    resolve(true);
+                }
+                else {
+                    resolve(false);
+                }
+            })
+        })
+    }
+
+    
 }
 
 module.exports = SysConnection;
