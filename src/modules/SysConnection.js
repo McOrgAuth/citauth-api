@@ -63,7 +63,7 @@ class SysConnection {
             })
         })
     }
-    
+
 }
 
 module.exports = SysConnection;
