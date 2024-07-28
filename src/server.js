@@ -166,4 +166,23 @@ app.listen(apiport, () => {
         
     })
 
+});
+
+process.on('SIGINT', () => {
+    console.log("\nCtrl+C Detected. CITAUTH-API is saying goodbye to CITAUTH-SYS...");
+    syscon.bye()
+    .then((result) => {
+        if(result) {
+            console.log("CITAUTH-API has received bye from CITAUTH-SYS.");
+            process.exit(0);
+        }
+        else {
+            console.log("CITAUTH-API didn't receive anything from CITAUTH-SYS.");
+            process.exit(-1);
+        }
+    })
+    .catch((err) => {
+        console.log("CITAUTH-API didn't receive anything from CITAUTH-SYS.");
+        process.exit(-2);
+    });
 })
