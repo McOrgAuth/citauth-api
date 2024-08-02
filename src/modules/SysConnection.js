@@ -55,7 +55,7 @@ class SysConnection {
             setTimeout(() => {
                 reject('timeout');
             }, 3000);
-            const success_message = "AUTH_SUCCESS:"+uuid+'|'+'\n';
+            const success_message = "AUTH_SUCCESS:"+uuid+'\n';
             this.sock.write("AUTH:"+uuid+'\n');
             this.sock.once('data', (data) => {
                 if(data.toString() == success_message) {

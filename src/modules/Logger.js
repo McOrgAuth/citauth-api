@@ -3,7 +3,12 @@ class Logger {
     path;
     stream;
     constructor(path) {
-        fs.mkdirSync(path);
+        try {
+            fs.mkdirSync(path);
+            console.log("Directory", path, "not found. Created.");
+        } catch (err) {
+            console.log("Dicectory", path, "already exists.");
+        }
         this.path = path + '/' + Date.parse(new Date()) +".log";
         this.stream = fs.createWriteStream(this.path, {encoding:'utf-8'});
         if(this.stream == null) {

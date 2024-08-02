@@ -34,6 +34,13 @@ app.get('/api/user', (req, res) => {
         return;
     }
 
+    const uuid = req.body.uuid;
+
+    if(uuid.length != 32) {
+        res.status(400).send("wrong length of uuid");
+        return;
+    }
+
     syscon.authenticate(req.body.uuid)
     .then((result) => {
         if(result) {
@@ -47,7 +54,6 @@ app.get('/api/user', (req, res) => {
     })
     .catch((err) => {
         res.status(500).send(err);
-        
     });
 
 });
@@ -215,7 +221,7 @@ app.listen(apiport, () => {
                 logger.log("CITAUTH-SYS returned hello to api.")
                 syscon.hello_flag = true;
                 status = true;
-                logger.log("CITAUTH-API-SERVER is now listening at: ", apiport);
+                logger.log("CITAUTH-API-SERVER is now listening at: "+ apiport);
             }
             else {
                 logger.error("CITAUTH-SYS didn't return anything, connection failed.");
@@ -232,7 +238,7 @@ app.listen(apiport, () => {
 });
 
 process.on('SIGINT', () => {
-    logger.log("\nCtrl+C Detected. CITAUTH-API is saying goodbye to CITAUTH-SYS...");
+    logger.log("Ctrl+C Detected. CITAUTH-API is saying goodbye to CITAUTH-SYS...");
     syscon.bye()
     .then((result) => {
         if(result) {
