@@ -1,15 +1,19 @@
 const express = require("express");
-const SysConnection = require('./modules/SysConnection.js');
 const app = express();
 const configfile = require("config");
 
 const apiport = configfile.config.apiport;
 const sysport = configfile.config.sysport;
 const syshost = configfile.config.syshost;
+const logpath = configfile.config.logpath;
 
 const pattern = new RegExp(configfile.config.pattern);
+
+const SysConnection = require('./modules/SysConnection.js');
+const Logger = require('./modules/Logger.js')
 let status = false;
 let syscon = null;
+let logger = null;
 
 app.use(express.json());
 
@@ -33,9 +37,11 @@ app.get('/api/user', (req, res) => {
     syscon.authenticate(req.body.uuid)
     .then((result) => {
         if(result) {
+            logger.log("AUTHENTICATE_SUCCEEDED, NOEMAIL, "+uuid);
             res.status(200).send();
         }
         else {
+            logger.log("AUTHENTICATE_FAILED, NOEMAIL, "+uuid);
             res.status(404).send();
         }
     })
@@ -53,6 +59,7 @@ app.post('/api/user', (req, res) => {
         return;
     }
     if(req.body.email == undefined) {
+        logger.log("Failed to register:");
         res.status(400).send('email required');
         return;
     }
@@ -68,7 +75,6 @@ app.post('/api/user', (req, res) => {
         return;
     }
     else if(email.match(pattern) == null) {
-        console.log(email, pattern);
         res.status(403).send('this address are not allowed to register');
         return;
     }
@@ -76,11 +82,12 @@ app.post('/api/user', (req, res) => {
     syscon.register(email, uuid)
     .then((result) => {
         if(result) {
+            logger.log("REGISTER_SUCCEEDED, "+email+", "+uuid);
             console.log(email, uuid, "succeeded")
             res.status(200).send();
         }
         else {
-            console.log(email, uuid, "failed")
+            logger.log("REGISTER_FAILED, "+email+", "+uuid);
             res.status(400).send();
         }
     })
@@ -118,9 +125,11 @@ app.delete('/api/user', (req, res) => {
     syscon.delete(email, uuid)
     .then((result) => {
         if(result) {
+            logger.log("DELETE_SUCCEEDED, "+email+", "+uuid);
             res.status(200).send();
         }
         else {
+            logger.log("DELETE_FAILED, "+email+", "+uuid);
             res.status(400).send();
         }
     })
@@ -153,27 +162,32 @@ app.listen(apiport, () => {
     console.log("Developed by mam1zu(mam1zu.piyo@gmail.com)");
     console.log("This API server is under construction");
 
+    logger = new Logger(logpath);
+    if(logger == null) {
+        console.error("Failed to start logging, startup aborted!");
+        process.exit(-10);
+    }
     syscon = new SysConnection();
 
     syscon.init(sysport, syshost)
     .then(() => {
-        console.log("Saying hello to CITAUTH-SYS...");
+        logger.log("Saying hello to CITAUTH-SYS...");
         syscon.hello()
         .then((result) => {
             if(result) {
-                console.log("CITAUTH-SYS returned hello to api.")
+                logger.log("CITAUTH-SYS returned hello to api.")
                 syscon.hello_flag = true;
                 status = true;
-                console.log("CITAUTH-API-SERVER is now listening at: ", apiport);
+                logger.log("CITAUTH-API-SERVER is now listening at: ", apiport);
             }
             else {
-                console.log("CITAUTH-SYS didn't return anything, connection failed.");
-                return;
+                logger.error("CITAUTH-SYS didn't return anything, connection failed.");
             }
         })
         .catch((err) => {
-            console.error("Couldn't establish connection to CITAUTH-SYS. Start aborted");
-            console.error(err);
+            logger.error("Couldn't establish connection to CITAUTH-SYS, startup aborted!");
+            logger.error(err);
+            procesx.exit(-20);
         })
         
     })
@@ -181,20 +195,20 @@ app.listen(apiport, () => {
 });
 
 process.on('SIGINT', () => {
-    console.log("\nCtrl+C Detected. CITAUTH-API is saying goodbye to CITAUTH-SYS...");
+    logger.log("\nCtrl+C Detected. CITAUTH-API is saying goodbye to CITAUTH-SYS...");
     syscon.bye()
     .then((result) => {
         if(result) {
-            console.log("CITAUTH-API has received bye from CITAUTH-SYS.");
+            logger.log("CITAUTH-API has received bye from CITAUTH-SYS.");
             process.exit(0);
         }
         else {
-            console.log("CITAUTH-API didn't receive anything from CITAUTH-SYS.");
+            logger.log("CITAUTH-API didn't receive anything from CITAUTH-SYS.");
             process.exit(-1);
         }
     })
     .catch((err) => {
-        console.log("CITAUTH-API didn't receive anything from CITAUTH-SYS.");
+        logger.error("CITAUTH-API didn't receive anything from CITAUTH-SYS.");
         process.exit(-2);
     });
 })
