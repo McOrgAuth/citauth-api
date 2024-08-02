@@ -140,12 +140,49 @@ app.delete('/api/user', (req, res) => {
 
 //email authentication
 app.post('/api/pre', (req, res) => {
+    if(!status) {
+        res.status(503).send();
+        return;
+    }
+    if(req.body.email == undefined) {
+        res.status(400).send('email required');
+        return;
+    }
+
+    if(req.body.uuid == undefined) {
+        res.status(400).send('uuid required');
+        return;
+    }
+
+    const email = req.body.email;
+    const uuid = req.body.uuid;
+
+    if(uuid.length != 32) {
+        res.status(400).send('wrong length of uuid');
+        return;
+    }
+
+    syscon.preresigter(email, uuid)
+    .then((result) => {
+        if(result) {
+            logger.log("PREREGISTER_SUCCEEDED, "+email+", "+uuid);
+            res.status(200).send();
+        }
+        else {
+            logger.log("PREREGISTER_FAILED, "+email+", "+uuid);
+            res.status(400).send();
+        }
+    })
+    .catch((err) => {
+        logger.error(err);
+    })
+
 
 });
 
 //check status of api
 app.get(('/api/status', (req, res) => {
-    
+    status ? res.status(200).send() : res.status(503).send();
 }))
 
 app.listen(apiport, () => {

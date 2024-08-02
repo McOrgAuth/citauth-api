@@ -86,6 +86,24 @@ class SysConnection {
         })
     }
 
+    preregister(email, uuid) {
+        return new Promise((resolve, reject) => {
+            setTimeout(() => {
+                reject('timeout');
+            }, 3000);
+            const success_message = "PRRG_SUCCESS:"+uuid+'|'+email+'\n';
+            this.sock.write("PRRG:"+uuid+'|'+email+'\n');
+            this.sock.once('data', (data) => {
+                if(data.toString() == success_message) {
+                    resolve(true);
+                }
+                else {
+                    resolve(false);
+                }
+            });
+        })
+    }
+
     delete(email, uuid) {
         return new Promise((resolve, reject) => {
             setTimeout(() => {
