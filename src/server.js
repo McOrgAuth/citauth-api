@@ -187,7 +187,7 @@ app.listen(apiport, () => {
         .catch((err) => {
             logger.error("Couldn't establish connection to CITAUTH-SYS, startup aborted!");
             logger.error(err);
-            procesx.exit(-20);
+            process.exit(-20);
         })
         
     })
