@@ -7,12 +7,11 @@ const apiport = configfile.config.apiport;
 const sysport = configfile.config.sysport;
 const syshost = configfile.config.syshost;
 
-const pattern = configfile.config.pattern;
-
+const pattern = new RegExp(configfile.config.pattern);
 let status = false;
 let syscon = null;
 
-app.use(express.urlencoded({extended: true}));
+app.use(express.json());
 
 app.get('/', (req, res) => {
     res.status(200).send("CITAUTH API SERVER");
@@ -27,7 +26,7 @@ app.get('/api/user', (req, res) => {
     }
 
     if(req.body.uuid == undefined) {
-        res.status(400).send();
+        res.status(400).send("uuid required");
         return;
     }
 
@@ -42,6 +41,7 @@ app.get('/api/user', (req, res) => {
     })
     .catch((err) => {
         res.status(500).send(err);
+        
     });
 
 });
@@ -61,22 +61,31 @@ app.post('/api/user', (req, res) => {
         res.status(400).send('uuid required');
         return;
     }
-
-    if(length(req.body.uuid) != 32) {
+    const uuid = req.body.uuid;
+    const email = req.body.email;
+    if(uuid.length != 32) {
         res.status(400).send('wrong length of uuid');
+        return;
+    }
+    else if(email.match(pattern) == null) {
+        console.log(email, pattern);
+        res.status(403).send('this address are not allowed to register');
         return;
     }
 
     syscon.register(email, uuid)
     .then((result) => {
         if(result) {
+            console.log(email, uuid, "succeeded")
             res.status(200).send();
         }
         else {
+            console.log(email, uuid, "failed")
             res.status(400).send();
         }
     })
     .catch((err) => {
+        console.log(err);
         res.status(500).send(err);
     });
 
@@ -98,7 +107,10 @@ app.delete('/api/user', (req, res) => {
         return;
     }
 
-    if(length(req.body.uuid) != 32) {
+    const email = req.body.email;
+    const uuid = req.body.uuid;
+
+    if(uuid.length != 32) {
         res.status(400).send('wrong length of uuid');
         return;
     }

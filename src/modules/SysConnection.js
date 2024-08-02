@@ -55,9 +55,10 @@ class SysConnection {
             setTimeout(() => {
                 reject('timeout');
             }, 3000);
-            this.sock.write("AUTH:",uuid,'\n');
+            const success_message = "AUTH_SUCCESS:"+uuid+'|'+'\n';
+            this.sock.write("AUTH:"+uuid+'\n');
             this.sock.once('data', (data) => {
-                if(data.toString() == "AUTH_SUCCESS:",uuid,'\n') {
+                if(data.toString() == success_message) {
                     resolve(true);
                 }
                 else {
@@ -72,9 +73,10 @@ class SysConnection {
             setTimeout(() => {
                 reject('timeout');
             }, 3000);
-            this.sock.write("RGST:",email,'|',uuid,'\n');
+            const success_message = "RGST_SUCCESS:"+uuid+'|'+email+'\n';
+            this.sock.write("RGST:"+uuid+'|'+email+'\n');
             this.sock.once('data', (data) => {
-                if(data.toString() == "RGST_SUCCESS:",email,'|',uuid,'\n') {
+                if(data.toString() == success_message) {
                     resolve(true);
                 }
                 else {
@@ -89,9 +91,11 @@ class SysConnection {
             setTimeout(() => {
                 reject('timeout')
             }, 3000);
-            this.sock.write("DELT:",email,'|',uuid,'\n');
+            const success_message = "DELT_SUCCESS:"+uuid+'|'+email+'\n';
+            this.sock.write("DELT:"+uuid+'|'+email+'\n');
             this.sock.once('data', (data) => {
-                if(data.toString() == "DELT_SUCCESS:",email,'|',uuid,'\n') {
+                console.log(data);
+                if(data.toString() == success_message) {
                     resolve(true);
                 }
                 else {
