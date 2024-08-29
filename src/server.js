@@ -18,6 +18,8 @@ let logger = null;
 app.use(express.json());
 
 app.get('/', (req, res) => {
+    logger.log(req.headers("Authorization"));
+    logger.log(req.headers);
     res.status(200).send("CITAUTH API SERVER");
 });
 
