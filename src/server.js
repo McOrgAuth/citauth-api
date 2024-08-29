@@ -18,13 +18,31 @@ let logger = null;
 app.use(express.json());
 
 app.get('/', (req, res) => {
-    logger.log(req.headers("Authorization"));
-    logger.log(req.headers);
+
     res.status(200).send("CITAUTH API SERVER");
+
 });
 
 //authenticate user
 app.get('/api/user', (req, res) => {
+
+    if(req.headers.authorization == undefined) {
+        res.setHeader('WWW-Authenticate: Bearer realm="citauth user authentication"');
+        res.status(401).send("access_token_required");
+    }
+
+    fetch("http://192.168.100.2:37567/auth/token")
+    .then((response) => {
+        if(res.status == 401) {
+            if(response.statusText == "not found") {
+                res.setHeader('WWW-Authenticate: Bearer realm="auth_user", error="invalid_token", error_description="The access token is invalid"');
+                res.status(401).send("invalid_access_token");
+            }
+            else if(response.statusText == "expired") {
+                res.setHeader('WWW-Authenticate:');
+            }
+        }
+    })
 
     if(!status) {
         res.status(503).send();
@@ -32,14 +50,14 @@ app.get('/api/user', (req, res) => {
     }
 
     if(req.body.uuid == undefined) {
-        res.status(400).send("uuid required");
+        res.status(400).send("uuid_required");
         return;
     }
 
     const uuid = req.body.uuid;
 
     if(uuid.length != 32) {
-        res.status(400).send("wrong length of uuid");
+        res.status(400).send("wrong_length_of_uuid");
         return;
     }
 
@@ -68,22 +86,22 @@ app.post('/api/user', (req, res) => {
     }
     if(req.body.email == undefined) {
         logger.log("Failed to register:");
-        res.status(400).send('email required');
+        res.status(400).send('email_required');
         return;
     }
 
     if(req.body.uuid == undefined) {
-        res.status(400).send('uuid required');
+        res.status(400).send('uuid_required');
         return;
     }
     const uuid = req.body.uuid;
     const email = req.body.email;
     if(uuid.length != 32) {
-        res.status(400).send('wrong length of uuid');
+        res.status(400).send('wrong_length_of_uuid');
         return;
     }
     else if(email.match(pattern) == null) {
-        res.status(403).send('this address are not allowed to register');
+        res.status(403).send('address_not_allowed_to_register');
         return;
     }
 
