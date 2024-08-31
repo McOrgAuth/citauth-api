@@ -26,56 +26,81 @@ app.get('/', (req, res) => {
 //authenticate user
 app.get('/api/user', (req, res) => {
 
-    if(req.headers.authorization == undefined) {
-        res.setHeader('WWW-Authenticate: Bearer realm="citauth user authentication"');
-        res.status(401).send("access_token_required");
-    }
-
-    fetch("http://192.168.100.2:37567/auth/token")
-    .then((response) => {
-        if(res.status == 401) {
-            if(response.statusText == "not found") {
-                res.setHeader('WWW-Authenticate: Bearer realm="auth_user", error="invalid_token", error_description="The access token is invalid"');
-                res.status(401).send("invalid_access_token");
-            }
-            else if(response.statusText == "expired") {
-                res.setHeader('WWW-Authenticate:');
-            }
-        }
-    })
-
     if(!status) {
-        res.status(503).send();
-        return;
+        return res.status(503).send();
     }
 
-    if(req.body.uuid == undefined) {
-        res.status(400).send("uuid_required");
-        return;
+    if(req.headers['authorization'] == undefined) {
+        console.log(req.headers['authorization']);
+        res.setHeader('WWW-Authenticate','Bearer error="token_required"');
+        return res.status(401).send("token_required");
     }
 
-    const uuid = req.body.uuid;
-
-    if(uuid.length != 32) {
-        res.status(400).send("wrong_length_of_uuid");
-        return;
+    if(req.headers['authorization'].indexOf('Bearer') == -1) {
+        res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+        return res.status(401).send('invalid_access_token');
     }
 
-    syscon.authenticate(req.body.uuid)
-    .then((result) => {
-        if(result) {
-            logger.log("AUTHENTICATE_SUCCEEDED, NOEMAIL, "+uuid);
-            res.status(200).send();
+    const token = req.headers['authorization'].slice(7);
+
+    fetch("http://192.168.100.2:37567/auth/token", {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ token: token }),
+    })
+    .then((resfromauthsrv) => {
+        if(!resfromauthsrv.ok) {
+            if(resfromauthsrv.headers.get('www-authenticate').indexOf('invalid_access_token')) {
+                res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+                return res.status(401).send('invalid_access_token');
+            }
+            else if(resfromauthsrv.headers.get('www-authenticate').indexOf('expired_access_token')) {
+                res.setHeader('WWW-Authenticate', 'Bearer error="expired_access_token"');
+                return res.status(401).send('expired_access_token');
+            }
+            else {
+                logger.error('Unexpected status code or error has returned from Authorisation Server');
+                res.setHeader('WWW-Authenticate', 'Bearer error="internal_server_error"');
+                return res.status(500).send();
+            }
         }
         else {
-            logger.log("AUTHENTICATE_FAILED, NOEMAIL, "+uuid);
-            res.status(404).send();
+            if(resfromauthsrv.headers.get('www-authenticate').indexOf('valid_access_token')) {
+                logger.log('token:'+token+' is valid');
+                res.setHeader('WWW-Authenticate', 'Bearer realm="citauth_user_auth"');
+            }
         }
     })
-    .catch((err) => {
-        res.status(500).send(err);
-    });
-
+    .then(() => {
+        if(req.body.uuid == undefined) {
+            console.log("no uuid");
+            return res.status(400).send("uuid_required");
+        }
+    
+        const uuid = req.body.uuid;
+    
+        if(uuid.length != 32) {
+            return res.status(400).send("wrong_length_of_uuid");
+        }
+    
+        syscon.authenticate(req.body.uuid)
+        .then((result) => {
+            if(result) {
+                logger.log("AUTHENTICATE_SUCCEEDED, NOEMAIL, "+uuid);
+                return res.status(200).send();
+            }
+            else {
+                logger.log("AUTHENTICATE_FAILED, NOEMAIL, "+uuid);
+                return res.status(404).send();
+            }
+        })
+        .catch((err) => {
+            if(!res.closed)
+                return res.status(500).send(err);
+        });
+    })
 });
 
 //register user
