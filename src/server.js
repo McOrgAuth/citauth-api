@@ -1,16 +1,20 @@
 const express = require("express");
 const app = express();
 const configfile = require("config");
+const jwt = require('jsonwebtoken');
+const fs = require('fs');
 
 const apiport = configfile.config.apiport;
 const sysport = configfile.config.sysport;
 const syshost = configfile.config.syshost;
 const logpath = configfile.config.logpath;
+const pubkeypath  = configfile.config.pubkeypath;
 
 const pattern = new RegExp(configfile.config.pattern);
 
 const SysConnection = require('./modules/SysConnection.js');
 const Logger = require('./modules/Logger.js')
+const pubkey = fs.readFileSync(configfile.config.pubkeypath);
 let status = false;
 let syscon = null;
 let logger = null;
@@ -43,84 +47,111 @@ app.get('/api/user', (req, res) => {
 
     const token = req.headers['authorization'].slice(7);
 
-    fetch("http://192.168.100.2:37567/auth/token", {
-        method: "POST",
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ token: token }),
-    })
-    .then((resfromauthsrv) => {
-        if(!resfromauthsrv.ok) {
-            if(resfromauthsrv.headers.get('www-authenticate').indexOf('invalid_access_token')) {
-                res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
-                return res.status(401).send('invalid_access_token');
-            }
-            else if(resfromauthsrv.headers.get('www-authenticate').indexOf('expired_access_token')) {
-                res.setHeader('WWW-Authenticate', 'Bearer error="expired_access_token"');
-                return res.status(401).send('expired_access_token');
-            }
-            else {
-                logger.error('Unexpected status code or error has returned from Authorisation Server');
-                res.setHeader('WWW-Authenticate', 'Bearer error="internal_server_error"');
-                return res.status(500).send();
-            }
+    let decoded = undefined;
+
+    try {
+        decoded = jwt.verify(token, pubkey);
+    } catch (err) {
+        //invalid
+        res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+        return res.status(401).send('invalid_access_token');
+    }
+
+    const expire = decoded.exp;
+    const now = Date.now() / 1000;
+
+    if(expire > now) {
+        //valid
+        res.setHeader('WWW-Authenticate', 'Bearer realm="citauth_authenticate_user"');
+    }
+    else {
+        //expired
+        res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
+        return res.status(401).send('expired_access_token');
+    }
+
+    if(req.body.uuid == undefined) {
+        console.log("no uuid");
+        return res.status(400).send("uuid_required");
+    }
+
+    const uuid = req.body.uuid;
+
+    if(uuid.length != 32) {
+        return res.status(400).send("wrong_length_of_uuid");
+    }
+
+    syscon.authenticate(req.body.uuid)
+    .then((result) => {
+        if(result) {
+            logger.log("AUTHENTICATE_SUCCEEDED, NOEMAIL, "+uuid+', token:'+token);
+            return res.status(200).send();
         }
         else {
-            if(resfromauthsrv.headers.get('www-authenticate').indexOf('valid_access_token')) {
-                logger.log('token:'+token+' is valid');
-                res.setHeader('WWW-Authenticate', 'Bearer realm="citauth_user_auth"');
-            }
+            logger.log("AUTHENTICATE_FAILED, NOEMAIL, "+uuid+', token:'+token);
+            return res.status(404).send();
         }
     })
-    .then(() => {
-        if(req.body.uuid == undefined) {
-            console.log("no uuid");
-            return res.status(400).send("uuid_required");
-        }
-    
-        const uuid = req.body.uuid;
-    
-        if(uuid.length != 32) {
-            return res.status(400).send("wrong_length_of_uuid");
-        }
-    
-        syscon.authenticate(req.body.uuid)
-        .then((result) => {
-            if(result) {
-                logger.log("AUTHENTICATE_SUCCEEDED, NOEMAIL, "+uuid);
-                return res.status(200).send();
-            }
-            else {
-                logger.log("AUTHENTICATE_FAILED, NOEMAIL, "+uuid);
-                return res.status(404).send();
-            }
-        })
-        .catch((err) => {
-            if(!res.closed)
-                return res.status(500).send(err);
-        });
-    })
+    .catch((err) => {
+        if(!res.closed)
+            return res.status(500).send(err);
+    });
+
 });
 
 //register user
 app.post('/api/user', (req, res) => {
+
     if(!status) {
-        res.status(503).send();
-        return;
+        return res.status(503).send();
     }
+
+    if(req.headers['authorization'] == undefined) {
+        console.log(req.headers['authorization']);
+        res.setHeader('WWW-Authenticate','Bearer error="token_required"');
+        return res.status(401).send("token_required");
+    }
+
+    if(req.headers['authorization'].indexOf('Bearer') == -1) {
+        res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+        return res.status(401).send('invalid_access_token');
+    }
+
+    const token = req.headers['authorization'].slice(7);
+
+    try {
+        decoded = jwt.verify(token, pubkey);
+    } catch (err) {
+        //invalid
+        res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+        return res.status(401).send('invalid_access_token');
+    }
+
+    const expire = decoded.exp;
+    const now = Date.now() / 1000;
+
+    if(expire > now) {
+        //valid
+        res.setHeader('WWW-Authenticate', 'Bearer realm="citauth_register_user"');
+    }
+    else {
+        //expired
+        res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
+        return res.status(401).send('expired_access_token');
+    }
+
     if(req.body.email == undefined) {
         logger.log("Failed to register:");
-        res.status(400).send('email_required');
-        return;
+        return res.status(400).send('email_required');
     }
 
     if(req.body.uuid == undefined) {
-        res.status(400).send('uuid_required');
-        return;
+        return res.status(400).send('uuid_required');
     }
+
     const uuid = req.body.uuid;
     const email = req.body.email;
+
     if(uuid.length != 32) {
         res.status(400).send('wrong_length_of_uuid');
         return;
@@ -151,10 +182,46 @@ app.post('/api/user', (req, res) => {
 
 //delete user
 app.delete('/api/user', (req, res) => {
+
     if(!status) {
         res.status(503).send();
         return;
     }
+
+    if(req.headers['authorization'] == undefined) {
+        console.log(req.headers['authorization']);
+        res.setHeader('WWW-Authenticate','Bearer error="token_required"');
+        return res.status(401).send("token_required");
+    }
+
+    if(req.headers['authorization'].indexOf('Bearer') == -1) {
+        res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+        return res.status(401).send('invalid_access_token');
+    }
+
+    const token = req.headers['authorization'].slice(7);
+
+    try {
+        decoded = jwt.verify(token, pubkey);
+    } catch (err) {
+        //invalid
+        res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+        return res.status(401).send('invalid_access_token');
+    }
+
+    const expire = decoded.exp;
+    const now = Date.now() / 1000;
+
+    if(expire > now) {
+        //valid
+        res.setHeader('WWW-Authenticate', 'Bearer realm="citauth_delete_user"');
+    }
+    else {
+        //expired
+        res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
+        return res.status(401).send('expired_access_token');
+    }
+
     if(req.body.email == undefined) {
         res.status(400).send('email required');
         return;
@@ -191,10 +258,46 @@ app.delete('/api/user', (req, res) => {
 
 //email authentication
 app.post('/api/pre', (req, res) => {
+
     if(!status) {
         res.status(503).send();
         return;
     }
+
+    if(req.headers['authorization'] == undefined) {
+        console.log(req.headers['authorization']);
+        res.setHeader('WWW-Authenticate','Bearer error="token_required"');
+        return res.status(401).send("token_required");
+    }
+
+    if(req.headers['authorization'].indexOf('Bearer') == -1) {
+        res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+        return res.status(401).send('invalid_access_token');
+    }
+
+    const token = req.headers['authorization'].slice(7);
+
+    try {
+        decoded = jwt.verify(token, pubkey);
+    } catch (err) {
+        //invalid
+        res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+        return res.status(401).send('invalid_access_token');
+    }
+
+    const expire = decoded.exp;
+    const now = Date.now() / 1000;
+
+    if(expire > now) {
+        //valid
+        res.setHeader('WWW-Authenticate', 'Bearer realm="citauth_preregister_user"');
+    }
+    else {
+        //expired
+        res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
+        return res.status(401).send('expired_access_token');
+    }
+
     if(req.body.email == undefined) {
         res.status(400).send('email required');
         return;
@@ -233,6 +336,7 @@ app.post('/api/pre', (req, res) => {
 
 //check status of api
 app.get(('/api/status', (req, res) => {
+
     status ? res.status(200).send() : res.status(503).send();
 }))
 
