@@ -93,6 +93,7 @@ app.get('/api/user', (req, res) => {
         }
     })
     .catch((err) => {
+        logger.error("CONNECTION_FAILED_TO_CITAUTH_SYS, NOEMAIL, "+uuid+", token:"+token);
         if(!res.closed)
             return res.status(500).send(err);
     });
@@ -331,16 +332,17 @@ app.post('/api/pre', (req, res) => {
         logger.error(err);
     })
 
-
 });
 
 //check status of api
 app.get(('/api/status', (req, res) => {
 
     status ? res.status(200).send() : res.status(503).send();
+
 }))
 
 app.listen(apiport, () => {
+
     console.log('\n----------------------------------------------------------------------------------------------\n',
         " #####    ######  ######## ######   ##   ##  ######## ### ###           ######   ######    ######\n",
         "##   ##     ##    ## ## ##  ## ###   #   ##  ## ## ##  ## ##             ## ###   ##  ##     ##\n",
@@ -351,14 +353,17 @@ app.listen(apiport, () => {
         " #####    ######    ####   ###  ##   #####     ####   ### ###           ###  ##  ####      ######\n",
         '---------------------------------------Under construction-------------------------------------\n'
     );
+
     console.log("Developed by mam1zu(mam1zu.piyo@gmail.com)");
     console.log("This API server is under construction");
 
     logger = new Logger(logpath);
+
     if(logger == null) {
         console.error("Failed to start logging, startup aborted!");
         process.exit(-10);
     }
+
     syscon = new SysConnection();
 
     syscon.init(sysport, syshost)
@@ -377,11 +382,14 @@ app.listen(apiport, () => {
             }
         })
         .catch((err) => {
-            logger.error("Couldn't establish connection to CITAUTH-SYS, startup aborted!");
+            logger.error("Connection establishment failed, startup aborted");
             logger.error(err);
             process.exit(-20);
         })
-        
+    })
+    .catch((error) => {
+        logger.error(error);
+        process.exit(-21);
     })
 
 });

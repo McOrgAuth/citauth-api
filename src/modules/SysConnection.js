@@ -1,4 +1,5 @@
 const net = require('net');
+const Logger = require('./Logger');
 const textEncoder = new TextEncoder("utf-8");
 
 class SysConnection {
@@ -15,12 +16,15 @@ class SysConnection {
             this.host = host;
             this.sock = net.createConnection({port: port, host: host, keepAlive: true, });
             this.sock.setEncoding("utf-8");
-            resolve();
+            resolve(true);
         })
     };
 
     hello() {
         return new Promise((resolve, reject) => {
+            setTimeout(() => {
+                reject('timeout');
+            }, 3000)
             this.sock.write("HELLO_CITAUTH_SYS\n");
             this.sock.once('data', (data) => {
                 if(data.toString() == "HELLO_CITAUTH_API\n") {
@@ -29,6 +33,9 @@ class SysConnection {
                 else {
                     resolve(false);
                 }
+            })
+            this.sock.once('error', (error) => {
+                reject(error);
             })
         })
     }
