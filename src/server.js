@@ -30,6 +30,8 @@ app.get('/', (req, res) => {
 //authenticate user
 app.get('/api/user', (req, res) => {
 
+    const method = 'authenticate';
+
     if(!status) {
         return res.status(503).send();
     }
@@ -58,7 +60,7 @@ app.get('/api/user', (req, res) => {
     }
 
     const expire = decoded.exp;
-    const now = Date.now() / 1000;
+    const now = Date.now();
 
     if(expire > now) {
         //valid
@@ -68,6 +70,11 @@ app.get('/api/user', (req, res) => {
         //expired
         res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
         return res.status(401).send('expired_access_token');
+    }
+
+    if(!checkScope(method, decoded.scp)) {
+        res.setHeader('WWW-Authenticate', 'Bearer error=""');
+        return res.status(403).send();
     }
 
     if(req.body.uuid == undefined) {
@@ -103,6 +110,8 @@ app.get('/api/user', (req, res) => {
 //register user
 app.post('/api/user', (req, res) => {
 
+    const method = 'register';
+
     if(!status) {
         return res.status(503).send();
     }
@@ -129,7 +138,7 @@ app.post('/api/user', (req, res) => {
     }
 
     const expire = decoded.exp;
-    const now = Date.now() / 1000;
+    const now = Date.now();
 
     if(expire > now) {
         //valid
@@ -184,6 +193,8 @@ app.post('/api/user', (req, res) => {
 //delete user
 app.delete('/api/user', (req, res) => {
 
+    const method = 'delete';
+
     if(!status) {
         res.status(503).send();
         return;
@@ -211,7 +222,7 @@ app.delete('/api/user', (req, res) => {
     }
 
     const expire = decoded.exp;
-    const now = Date.now() / 1000;
+    const now = Date.now();
 
     if(expire > now) {
         //valid
@@ -260,6 +271,8 @@ app.delete('/api/user', (req, res) => {
 //email authentication
 app.post('/api/pre', (req, res) => {
 
+    const method = 'preregister';
+
     if(!status) {
         res.status(503).send();
         return;
@@ -287,7 +300,7 @@ app.post('/api/pre', (req, res) => {
     }
 
     const expire = decoded.exp;
-    const now = Date.now() / 1000;
+    const now = Date.now();
 
     if(expire > now) {
         //valid
@@ -412,3 +425,27 @@ process.on('SIGINT', () => {
         process.exit(-2);
     });
 })
+
+function checkScope(method, attribute) {
+    let result = false;
+    if(attribute == "admin") return true;
+    switch(method) {
+        case "authenticate":
+            result = attribute == 'plugin';
+            break;
+        case "register":
+            result = attribute == 'frontend';
+            break;
+        case "delete":
+            result = attribute == 'frontend';
+            break;
+        case "preregister":
+            result = attribute == 'frontend';
+            break;
+        default:
+            result = false;
+            break;
+    }
+
+    return result;
+}
