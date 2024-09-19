@@ -129,6 +129,8 @@ app.post('/api/user', (req, res) => {
 
     const token = req.headers['authorization'].slice(7);
 
+    let decoded = undefined;
+
     try {
         decoded = jwt.verify(token, pubkey);
     } catch (err) {
@@ -213,6 +215,8 @@ app.delete('/api/user', (req, res) => {
 
     const token = req.headers['authorization'].slice(7);
 
+    let decoded = undefined;
+
     try {
         decoded = jwt.verify(token, pubkey);
     } catch (err) {
@@ -290,6 +294,8 @@ app.post('/api/pre', (req, res) => {
     }
 
     const token = req.headers['authorization'].slice(7);
+
+    let decoded = undefined;
 
     try {
         decoded = jwt.verify(token, pubkey);
