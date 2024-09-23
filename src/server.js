@@ -161,8 +161,13 @@ app.post('/api/user', (req, res) => {
         return res.status(400).send('uuid_required');
     }
 
+    if(res.body.preregid == undefined) {
+        return res.status(400).send('preregister_required');
+    }
+
     const uuid = req.body.uuid;
     const email = req.body.email;
+    const preregid = req.body.preregid;
 
     if(uuid.length != 32) {
         res.status(400).send('wrong_length_of_uuid');
@@ -172,16 +177,19 @@ app.post('/api/user', (req, res) => {
         res.status(403).send('address_not_allowed_to_register');
         return;
     }
+    else if(preregid.length != 32) {
+        res.status(400).send('wrong_length_of_preregid');
+    }
 
-    syscon.register(email, uuid)
+    syscon.register(email, uuid, preregid)
     .then((result) => {
         if(result) {
-            logger.log("REGISTER_SUCCEEDED, "+email+", "+uuid);
-            console.log(email, uuid, "succeeded")
+            logger.log("REGISTER_SUCCEEDED, "+email+", "+uuid+", "+preregid);
+            console.log(email, uuid, preregid, "succeeded")
             res.status(200).send();
         }
         else {
-            logger.log("REGISTER_FAILED, "+email+", "+uuid);
+            logger.log("REGISTER_FAILED, "+email+", "+uuid+", "+preregid);
             res.status(400).send();
         }
     })

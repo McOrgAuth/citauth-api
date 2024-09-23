@@ -75,13 +75,13 @@ class SysConnection {
         })
     }
 
-    register(email, uuid) {
+    register(email, uuid, preregid) {
         return new Promise((resolve, reject) => {
             setTimeout(() => {
                 reject('timeout');
             }, 3000);
-            const success_message = "RGST_SUCCESS:"+uuid+'|'+email+'\n';
-            this.sock.write("RGST:"+uuid+'|'+email+'\n');
+            const success_message = "RGST_SUCCESS:"+uuid+'|'+email+'#'+preregid+'\n';
+            this.sock.write("RGST:"+uuid+'|'+email+'#'+preregid+'\n');
             this.sock.once('data', (data) => {
                 if(data.toString() == success_message) {
                     resolve(true);
