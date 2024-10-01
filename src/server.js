@@ -2,6 +2,7 @@ const express = require("express");
 const app = express();
 const configfile = require("config");
 const jwt = require('jsonwebtoken');
+const cors = require('cors');
 const fs = require('fs');
 
 const apiport = configfile.config.apiport;
@@ -20,6 +21,7 @@ let syscon = null;
 let logger = null;
 
 app.use(express.json());
+app.use(cors({ origin: 'http://192.168.1.5:8080' }));
 
 app.get('/', (req, res) => {
 
@@ -28,9 +30,9 @@ app.get('/', (req, res) => {
 });
 
 //authenticate user
-app.get('/api/user', (req, res) => {
+app.post('/api/auth', (req, res) => {
 
-    const method = 'authenticate';
+    const method = 'auth';
 
     if(!status) {
         return res.status(503).send();
@@ -71,11 +73,12 @@ app.get('/api/user', (req, res) => {
         res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
         return res.status(401).send('expired_access_token');
     }
-
+    /*
     if(!checkScope(method, decoded.scp)) {
         res.setHeader('WWW-Authenticate', 'Bearer error=""');
         return res.status(403).send();
     }
+    */
 
     if(req.body.uuid == undefined) {
         console.log("no uuid");
@@ -108,7 +111,7 @@ app.get('/api/user', (req, res) => {
 });
 
 //register user
-app.post('/api/user', (req, res) => {
+app.post('/api/register', (req, res) => {
 
     const method = 'register';
 
@@ -201,7 +204,7 @@ app.post('/api/user', (req, res) => {
 });
 
 //delete user
-app.delete('/api/user', (req, res) => {
+app.delete('/api/delete', (req, res) => {
 
     const method = 'delete';
 
