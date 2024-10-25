@@ -15,6 +15,7 @@ const pattern = new RegExp(configfile.config.pattern);
 
 const SysConnection = require('./modules/SysConnection.js');
 const Logger = require('./modules/Logger.js')
+const Utils = require('./modules/Utils.js');
 const pubkey = fs.readFileSync(configfile.config.pubkeypath);
 let status = false;
 let syscon = null;
@@ -41,12 +42,12 @@ app.post('/api/auth', (req, res) => {
     if(req.headers['authorization'] == undefined) {
         console.log(req.headers['authorization']);
         res.setHeader('WWW-Authenticate','Bearer error="token_required"');
-        return res.status(401).send("token_required");
+        return res.status(401).json(utils.error_json('token_required'));;
     }
 
     if(req.headers['authorization'].indexOf('Bearer') == -1) {
         res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
-        return res.status(401).send('invalid_access_token');
+        return res.status(401).json(utils.error_json('invalid_access_token'));
     }
 
     const token = req.headers['authorization'].slice(7);
@@ -58,7 +59,7 @@ app.post('/api/auth', (req, res) => {
     } catch (err) {
         //invalid
         res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
-        return res.status(401).send('invalid_access_token');
+        return res.status(401).json(utils.error_json('invalid_access_token'));
     }
 
     const expire = decoded.exp;
@@ -71,7 +72,7 @@ app.post('/api/auth', (req, res) => {
     else {
         //expired
         res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
-        return res.status(401).send('expired_access_token');
+        return res.status(401).json(utils.error_json('expired_access_token'));
     }
     /*
     if(!checkScope(method, decoded.scp)) {
@@ -293,6 +294,8 @@ app.post('/api/pre', (req, res) => {
         return;
     }
 
+    console.log(req.headers);
+
     if(req.headers['authorization'] == undefined) {
         console.log(req.headers['authorization']);
         res.setHeader('WWW-Authenticate','Bearer error="token_required"');
@@ -317,8 +320,9 @@ app.post('/api/pre', (req, res) => {
     }
 
     const expire = decoded.exp;
-    const now = Date.now();
+    const now = utils.unixtime(Date.now());
 
+    console.log(expire + " vs " +now );
     if(expire > now) {
         //valid
         res.setHeader('WWW-Authenticate', 'Bearer realm="citauth_preregister_user"');
@@ -347,15 +351,15 @@ app.post('/api/pre', (req, res) => {
         return;
     }
 
-    syscon.preresigter(email, uuid)
+    syscon.preregister(email, uuid)
     .then((result) => {
-        if(result) {
-            logger.log("PREREGISTER_SUCCEEDED, "+email+", "+uuid);
-            res.status(200).send();
-        }
-        else {
+        if(!result) {
             logger.log("PREREGISTER_FAILED, "+email+", "+uuid);
             res.status(400).send();
+        }
+        else {
+            logger.log("PREREGISTER_SUCCEEDED, "+email+", "+uuid+', '+ result);
+            res.status(200).send();
         }
     })
     .catch((err) => {
@@ -365,11 +369,11 @@ app.post('/api/pre', (req, res) => {
 });
 
 //check status of api
-app.get(('/api/status', (req, res) => {
+app.get('/api/status', (req, res) => {
 
     status ? res.status(200).send() : res.status(503).send();
 
-}))
+});
 
 app.listen(apiport, () => {
 
@@ -387,6 +391,7 @@ app.listen(apiport, () => {
     console.log("Developed by mam1zu(mam1zu.piyo@gmail.com)");
     console.log("This API server is under construction");
 
+    utils = new Utils();
     logger = new Logger(logpath);
 
     if(logger == null) {

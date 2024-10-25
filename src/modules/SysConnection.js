@@ -98,11 +98,12 @@ class SysConnection {
             setTimeout(() => {
                 reject('timeout');
             }, 3000);
-            const success_message = "PRRG_SUCCESS:"+uuid+'|'+email+'\n';
+            const success_message = "PRRG_SUCCESS:"+uuid+'|'+email;
             this.sock.write("PRRG:"+uuid+'|'+email+'\n');
             this.sock.once('data', (data) => {
-                if(data.toString() == success_message) {
-                    resolve(true);
+                if(data.toString().indexOf(success_message) != -1) {
+                    let preregid = data.toString().substring(data.toString().indexOf('#')+1);
+                    resolve(preregid);
                 }
                 else {
                     resolve(false);
