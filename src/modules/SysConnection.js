@@ -1,6 +1,5 @@
 const net = require('net');
 const Logger = require('./Logger');
-const textEncoder = new TextEncoder("utf-8");
 
 class SysConnection {
     port;
@@ -25,6 +24,25 @@ class SysConnection {
             setTimeout(() => {
                 reject('timeout');
             }, 3000)
+            let req_json = {
+                "hello": "ping"
+            };
+            let res_json = undefined;
+            console.log(JSON.stringify(req_json));
+            this.sock.write(JSON.stringify(req_json));
+            this.sock.once('data', (data) => {
+                res_json = JSON.parse(data);
+                if(res_json.hello == "pong") {
+                    resolve(true);
+                }
+                else {
+                    resolve(false);
+                }
+            });
+            this.sock.once('error', (error) => {
+                reject(error);
+            })
+            /*
             this.sock.write("HELLO_CITAUTH_SYS\n");
             this.sock.once('data', (data) => {
                 if(data.toString() == "HELLO_CITAUTH_API\n") {
@@ -37,6 +55,7 @@ class SysConnection {
             this.sock.once('error', (error) => {
                 reject(error);
             })
+            */
         })
     }
 
@@ -45,6 +64,25 @@ class SysConnection {
             setTimeout(() => {
                 reject(false);
             }, 3000);
+
+            let req_json = {
+                "bye": "ping"
+            };
+            let res_json = undefined;
+            this.sock.write(JSON.stringify(req_json));
+            this.sock.once('data', (data) => {
+                res_json = JSON.parse(data);
+                if(res_json.bye == "pong") {
+                    resolve(true);
+                }
+                else {
+                    resolve(false);
+                }
+            });
+            this.sock.once('error', (error) => {
+                reject(error);
+            })
+            /*
             this.sock.write("BYE_CITAUTH_SYS\n");
             this.sock.once('data', (data) => {
                 if(data.toString() == "BYE_CITAUTH_API\n") {
@@ -54,6 +92,7 @@ class SysConnection {
                     resolve(false);
                 }
             })
+            */
         })
     }
 
@@ -62,34 +101,62 @@ class SysConnection {
             setTimeout(() => {
                 reject('timeout');
             }, 3000);
-            const success_message = "AUTH_SUCCESS:"+uuid+'\n';
-            this.sock.write("AUTH:"+uuid+'\n');
+
+            let req_json = {
+                "method": "AUTH",
+                "uuid": uuid,
+            };
+
+            let res_json = undefined;
+
+            this.sock.write(JSON.stringify(req_json));
             this.sock.once('data', (data) => {
-                if(data.toString() == success_message) {
-                    resolve(true);
+                res_json = JSON.parse(data);
+                if(res_json == undefined) {
+                    reject();
                 }
                 else {
-                    resolve(false);
+                    console.log(res_json);
+                    if(res_json.method=="AUTH" && res_json.uuid==uuid) {
+                        resolve(res_json);
+                    }
+                    else {
+                        reject();
+                    }
                 }
-            })
+            });
         })
     }
 
-    register(email, uuid, preregid) {
+    register(preregid) {
         return new Promise((resolve, reject) => {
             setTimeout(() => {
                 reject('timeout');
             }, 3000);
-            const success_message = "RGST_SUCCESS:"+uuid+'|'+email+'#'+preregid+'\n';
-            this.sock.write("RGST:"+uuid+'|'+email+'#'+preregid+'\n');
+
+            let req_json = {
+                "method": "RGST",
+                "preregid": preregid
+            }
+
+            let res_json = undefined;
+
+            this.sock.write(JSON.stringify(req_json));
             this.sock.once('data', (data) => {
-                if(data.toString() == success_message) {
-                    resolve(true);
+                res_json = JSON.parse(data);
+                if(res_json == undefined) {
+                    reject();
                 }
                 else {
-                    resolve(false);
+                    console.log(res_json);
+                    if(res_json.method == "RGST" && res_json.preregid == preregid) {
+                        resolve(res_json);
+                    }
+                    else {
+                        reject();
+                    }
                 }
-            })
+            });
         })
     }
 
@@ -98,17 +165,32 @@ class SysConnection {
             setTimeout(() => {
                 reject('timeout');
             }, 3000);
-            const success_message = "PRRG_SUCCESS:"+uuid+'|'+email;
-            this.sock.write("PRRG:"+uuid+'|'+email+'\n');
+
+            let req_json = {
+                "method": "PRRG",
+                "email": email,
+                "uuid": uuid,
+            };
+
+            let res_json = undefined;
+
+            this.sock.write(JSON.stringify(req_json));
             this.sock.once('data', (data) => {
-                if(data.toString().indexOf(success_message) != -1) {
-                    let preregid = data.toString().substring(data.toString().indexOf('#')+1);
-                    resolve(preregid);
+                res_json = JSON.parse(data);
+                if(res_json == undefined) {
+                    reject();
                 }
                 else {
-                    resolve(false);
+                    console.log(res_json);
+                    if(res_json.method=="PRRG" && res_json.email==email && res_json.uuid==uuid) {
+                        resolve(res_json);
+                    }
+                    else {
+                        reject();
+                    }
                 }
             });
+
         })
     }
 
@@ -117,17 +199,31 @@ class SysConnection {
             setTimeout(() => {
                 reject('timeout')
             }, 3000);
-            const success_message = "DELT_SUCCESS:"+uuid+'|'+email+'\n';
-            this.sock.write("DELT:"+uuid+'|'+email+'\n');
+
+            let req_json = {
+                "method": "DELT",
+                "email": email,
+                "uuid": uuid,
+            };
+
+            let res_json = undefined;
+
+            this.sock.write(JSON.stringify(req_json));
             this.sock.once('data', (data) => {
-                console.log(data);
-                if(data.toString() == success_message) {
-                    resolve(true);
+                res_json = JSON.parse(data);
+                if(res_json == undefined) {
+                    reject();
                 }
                 else {
-                    resolve(false);
+                    console.log(res_json);
+                    if(res_json.method=="DELT" && res_json.email==email && res_json.uuid==uuid) {
+                        resolve(res_json);
+                    }
+                    else {
+                        reject();
+                    }
                 }
-            })
+            });
         })
     }
 

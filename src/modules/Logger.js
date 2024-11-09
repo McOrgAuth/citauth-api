@@ -32,6 +32,12 @@ class Logger {
         console.log(formatted_message);
     }
 
+    warn(message) {
+        const formatted_message = format(message, "WRN");
+        this.stream.write(formatted_message+'\n');
+        console.warn(formatted_message);
+    }
+
 
 }
 

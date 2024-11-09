@@ -10,12 +10,14 @@ const sysport = configfile.config.sysport;
 const syshost = configfile.config.syshost;
 const logpath = configfile.config.logpath;
 const pubkeypath  = configfile.config.pubkeypath;
+const email_from = "citauth-noreply@citauth.chosuichi.com";
 
 const pattern = new RegExp(configfile.config.pattern);
 
 const SysConnection = require('./modules/SysConnection.js');
 const Logger = require('./modules/Logger.js')
 const Utils = require('./modules/Utils.js');
+const Mailer = require("./modules/Mailer.js");
 const pubkey = fs.readFileSync(configfile.config.pubkeypath);
 let status = false;
 let syscon = null;
@@ -63,7 +65,7 @@ app.post('/api/auth', (req, res) => {
     }
 
     const expire = decoded.exp;
-    const now = Date.now();
+    const now = utils.unixtime(Date.now());
 
     if(expire > now) {
         //valid
@@ -94,7 +96,7 @@ app.post('/api/auth', (req, res) => {
 
     syscon.authenticate(req.body.uuid)
     .then((result) => {
-        if(result) {
+        if(result.status == 1) {
             logger.log("AUTHENTICATE_SUCCEEDED, NOEMAIL, "+uuid+', token:'+token);
             return res.status(200).send();
         }
@@ -120,6 +122,9 @@ app.post('/api/register', (req, res) => {
         return res.status(503).send();
     }
 
+    console.log(req.headers);
+    console.log(req.body);
+
     if(req.headers['authorization'] == undefined) {
         console.log(req.headers['authorization']);
         res.setHeader('WWW-Authenticate','Bearer error="token_required"');
@@ -144,7 +149,7 @@ app.post('/api/register', (req, res) => {
     }
 
     const expire = decoded.exp;
-    const now = Date.now();
+    const now = utils.unixtime(Date.now());
 
     if(expire > now) {
         //valid
@@ -156,44 +161,21 @@ app.post('/api/register', (req, res) => {
         return res.status(401).send('expired_access_token');
     }
 
-    if(req.body.email == undefined) {
-        logger.log("Failed to register:");
-        return res.status(400).send('email_required');
+    if(req.body.preregid == undefined) {
+        return res.status(400).send('preregid_required');
     }
 
-    if(req.body.uuid == undefined) {
-        return res.status(400).send('uuid_required');
-    }
-
-    if(res.body.preregid == undefined) {
-        return res.status(400).send('preregister_required');
-    }
-
-    const uuid = req.body.uuid;
-    const email = req.body.email;
     const preregid = req.body.preregid;
 
-    if(uuid.length != 32) {
-        res.status(400).send('wrong_length_of_uuid');
-        return;
-    }
-    else if(email.match(pattern) == null) {
-        res.status(403).send('address_not_allowed_to_register');
-        return;
-    }
-    else if(preregid.length != 32) {
-        res.status(400).send('wrong_length_of_preregid');
-    }
-
-    syscon.register(email, uuid, preregid)
+    syscon.register(preregid)
     .then((result) => {
-        if(result) {
-            logger.log("REGISTER_SUCCEEDED, "+email+", "+uuid+", "+preregid);
-            console.log(email, uuid, preregid, "succeeded")
+        if(result.status == 1) {
+            logger.log("REGISTER_SUCCEEDED, "+result.email+", "+result.uuid+", "+preregid);
+            console.log(result.email, result.uuid, preregid, "succeeded");
             res.status(200).send();
         }
         else {
-            logger.log("REGISTER_FAILED, "+email+", "+uuid+", "+preregid);
+            logger.log("REGISTER_FAILED, "+result.email+", "+result.uuid+", "+result.preregid);
             res.status(400).send();
         }
     })
@@ -214,6 +196,8 @@ app.delete('/api/delete', (req, res) => {
         return;
     }
 
+    console.log(req.headers);
+
     if(req.headers['authorization'] == undefined) {
         console.log(req.headers['authorization']);
         res.setHeader('WWW-Authenticate','Bearer error="token_required"');
@@ -238,7 +222,7 @@ app.delete('/api/delete', (req, res) => {
     }
 
     const expire = decoded.exp;
-    const now = Date.now();
+    const now = utils.unixtime(Date.now());
 
     if(expire > now) {
         //valid
@@ -246,17 +230,17 @@ app.delete('/api/delete', (req, res) => {
     }
     else {
         //expired
-        res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
+        res.setHeader('WWW-Authenticate', 'Bearer error="expired_access_token"');
         return res.status(401).send('expired_access_token');
     }
 
     if(req.body.email == undefined) {
-        res.status(400).send('email required');
+        res.status(400).send('email_required');
         return;
     }
 
     if(req.body.uuid == undefined) {
-        res.status(400).send('uuid required');
+        res.status(400).send('uuid_required');
         return;
     }
 
@@ -264,13 +248,13 @@ app.delete('/api/delete', (req, res) => {
     const uuid = req.body.uuid;
 
     if(uuid.length != 32) {
-        res.status(400).send('wrong length of uuid');
+        res.status(400).send('invalid_uuid_length');
         return;
     }
 
     syscon.delete(email, uuid)
     .then((result) => {
-        if(result) {
+        if(result.status == 1) {
             logger.log("DELETE_SUCCEEDED, "+email+", "+uuid);
             res.status(200).send();
         }
@@ -314,32 +298,27 @@ app.post('/api/pre', (req, res) => {
     try {
         decoded = jwt.verify(token, pubkey);
     } catch (err) {
-        //invalid
-        res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
-        return res.status(401).send('invalid_access_token');
+        if(err.message="jwt expired") {
+            logger.log("got_expired_token: "+token);
+            res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
+            return res.status(401).send('expired_access_token');
+        }
+        else {
+            logger.warn("got_invalid_token:" +token);
+            res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+            return res.status(401).send('invalid_access_token');
+        }
     }
 
-    const expire = decoded.exp;
-    const now = utils.unixtime(Date.now());
-
-    console.log(expire + " vs " +now );
-    if(expire > now) {
-        //valid
-        res.setHeader('WWW-Authenticate', 'Bearer realm="citauth_preregister_user"');
-    }
-    else {
-        //expired
-        res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
-        return res.status(401).send('expired_access_token');
-    }
+    res.setHeader('WWW-Authenticate', 'Bearer realm="citauth_preregister_user"');
 
     if(req.body.email == undefined) {
-        res.status(400).send('email required');
+        res.status(400).send('email_required');
         return;
     }
 
     if(req.body.uuid == undefined) {
-        res.status(400).send('uuid required');
+        res.status(400).send('uuid_required');
         return;
     }
 
@@ -347,24 +326,40 @@ app.post('/api/pre', (req, res) => {
     const uuid = req.body.uuid;
 
     if(uuid.length != 32) {
-        res.status(400).send('wrong length of uuid');
+        res.status(400).send('invalid_uuid_length');
         return;
     }
 
     syscon.preregister(email, uuid)
     .then((result) => {
-        if(!result) {
+        if(result.status != 1 || result.status == undefined) {
             logger.log("PREREGISTER_FAILED, "+email+", "+uuid);
-            res.status(400).send();
+            switch(result.status) {
+                case -2:
+                    //失敗。仮登録に失敗した。
+                    return res.status(400).send("failed");
+                case -3:
+                    //失敗。すでに仮登録されている。セキュリティ上の理由により200を返す。
+                    const mail = mailer.mail_failed(email_from, email);
+                    mailer.sendPreregisterVerifyEmail(mail);
+                    return res.status(200).send("succeeded");
+                case -100:
+                    //失敗。サーバ側例外エラー。
+                    return res.status(500).send("unexpected");
+            }
         }
         else {
-            logger.log("PREREGISTER_SUCCEEDED, "+email+", "+uuid+', '+ result);
-            res.status(200).send();
+            logger.log("PREREGISTER_SUCCEEDED, "+email+", "+uuid+', '+ result.preregid);
+            const mail = mailer.mail_succeeded(email_from, email, result.preregid);
+            mailer.sendPreregisterVerifyEmail(mail);
+            return res.status(200).send("succeeded");
         }
     })
     .catch((err) => {
         logger.error(err);
     })
+
+
 
 });
 
@@ -390,13 +385,18 @@ app.listen(apiport, () => {
 
     console.log("Developed by mam1zu(mam1zu.piyo@gmail.com)");
     console.log("This API server is under construction");
-
-    utils = new Utils();
     logger = new Logger(logpath);
-
     if(logger == null) {
         console.error("Failed to start logging, startup aborted!");
         process.exit(-10);
+    }
+    utils = new Utils();
+    mailer = new Mailer(logger, configfile.config.mail.host, configfile.config.mail.port, configfile.config.mail.user, configfile.config.mail.pass);
+
+    if(configfile.config.debug) {
+        logger.warn("Debug-mode.");
+        logger.log("Mailer information is as follows:");
+        logger.log(mailer);
     }
 
     syscon = new SysConnection();
