@@ -43,8 +43,13 @@ class Logger {
 
 function format(message, type) {
     const now = new Date();
-    let formatted_message = "[" + now.toISOString() + "]" + "["+type+"]"+message;
+    let formatted_message = "[" + getJSTString(now) + "]" + "["+type+"]"+message;
     return formatted_message;
+}
+
+function getJSTString(date) {
+    date.setHours(date.getHours() + 9);
+    return date.toISOString().replace('Z', '+09:00');
 }
 
 module.exports = Logger;

@@ -22,6 +22,7 @@ const pubkey = fs.readFileSync(configfile.config.pubkeypath);
 let status = false;
 let syscon = null;
 let logger = null;
+let mailer = null;
 
 app.use(express.json());
 app.use(cors({ origin: 'http://192.168.1.5:8080' }));
@@ -59,22 +60,16 @@ app.post('/api/auth', (req, res) => {
     try {
         decoded = jwt.verify(token, pubkey);
     } catch (err) {
-        //invalid
-        res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
-        return res.status(401).json(utils.error_json('invalid_access_token'));
-    }
-
-    const expire = decoded.exp;
-    const now = utils.unixtime(Date.now());
-
-    if(expire > now) {
-        //valid
-        res.setHeader('WWW-Authenticate', 'Bearer realm="citauth_authenticate_user"');
-    }
-    else {
-        //expired
-        res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
-        return res.status(401).json(utils.error_json('expired_access_token'));
+        if(err.message=="jwt expired") {
+            logger.log("got_expired_token: "+token);
+            res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
+            return res.status(401).send('expired_access_token');
+        }
+        else {
+            logger.warn("got_invalid_token:" +token);
+            res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+            return res.status(401).send('invalid_access_token');
+        }
     }
     /*
     if(!checkScope(method, decoded.scp)) {
@@ -87,6 +82,8 @@ app.post('/api/auth', (req, res) => {
         console.log("no uuid");
         return res.status(400).send("uuid_required");
     }
+
+    console.log(req.body.uuid);
 
     const uuid = req.body.uuid;
 
@@ -143,22 +140,16 @@ app.post('/api/register', (req, res) => {
     try {
         decoded = jwt.verify(token, pubkey);
     } catch (err) {
-        //invalid
-        res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
-        return res.status(401).send('invalid_access_token');
-    }
-
-    const expire = decoded.exp;
-    const now = utils.unixtime(Date.now());
-
-    if(expire > now) {
-        //valid
-        res.setHeader('WWW-Authenticate', 'Bearer realm="citauth_register_user"');
-    }
-    else {
-        //expired
-        res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
-        return res.status(401).send('expired_access_token');
+        if(err.message=="jwt expired") {
+            logger.log("got_expired_token: "+token);
+            res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
+            return res.status(401).send('expired_access_token');
+        }
+        else {
+            logger.warn("got_invalid_token:" +token);
+            res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+            return res.status(401).send('invalid_access_token');
+        }
     }
 
     if(req.body.preregid == undefined) {
@@ -185,6 +176,91 @@ app.post('/api/register', (req, res) => {
     });
 
 });
+
+app.delete('/api/predelete', (req, res) => {
+    
+    const method = 'predelete';
+
+    if(!status) {
+        return res.status(503).send();
+    }
+
+    console.log(req.headers);
+
+    if(req.headers['authorization'] == undefined) {
+        console.log(req.headers['authorization']);
+        res.setHeader('WWW-Authenticate','Bearer error="token_required"');
+        return res.status(401).send("token_required");
+    }
+
+    if(req.headers['authorization'].indexOf('Bearer') == -1) {
+        res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+        return res.status(401).send('invalid_access_token');
+    }
+
+    const token = req.headers['authorization'].slice(7);
+
+    let decoded = undefined;
+
+    try {
+        decoded = jwt.verify(token, pubkey);
+    } catch (err) {
+        if(err.message == "jwt expired") {
+            logger.log("got_expired_token: "+token);
+            res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
+            return res.status(401).send('expired_access_token');
+        }
+        else {
+            logger.warn("got_invalid_token:" +token);
+            res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+            return res.status(401).send('invalid_access_token');
+        }
+    }
+
+    if(req.body.email == undefined) {
+        return res.status(400).send('email_required');
+    }
+
+    const email = req.body.email;
+
+    syscon.predelete(email)
+    .then((result) => {
+        console.log(result.status);
+        if(result.status != 1 || result.status == undefined) {
+            logger.log("PREDELETE_FAILED, "+email);
+            switch(result.status) {
+                case -1:
+                    //失敗。ユーザが存在しない。セキュリティ上の理由により200を返す。
+                    const mail = mailer.mail_predelete_failed(email_from, email);
+                    mailer.send(mail);
+                    res.status(200).send("succeeded");
+                    break;
+                case -100:
+                    //例外エラー
+                    res.status(500).send("unexpected");
+                    break;
+                default:
+                    res.status(400).send("failed");
+                    break;
+            }
+            return;
+        }
+        else {
+            logger.log("PREDELETE_SUCCEEDED, "+email+", "+result.predelid);
+            const mail = mailer.mail_predelete_succeeded(email_from, email, result.predelid);
+            mailer.send(mail);
+            return res.status(200).send("succeeded");
+        }
+    })
+    .catch((err) => {
+        logger.error(err);
+        return res.status(500).send(err);
+    })
+
+
+
+
+})
 
 //delete user
 app.delete('/api/delete', (req, res) => {
@@ -216,55 +292,52 @@ app.delete('/api/delete', (req, res) => {
     try {
         decoded = jwt.verify(token, pubkey);
     } catch (err) {
-        //invalid
-        res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
-        return res.status(401).send('invalid_access_token');
-    }
-
-    const expire = decoded.exp;
-    const now = utils.unixtime(Date.now());
-
-    if(expire > now) {
-        //valid
-        res.setHeader('WWW-Authenticate', 'Bearer realm="citauth_delete_user"');
-    }
-    else {
-        //expired
-        res.setHeader('WWW-Authenticate', 'Bearer error="expired_access_token"');
-        return res.status(401).send('expired_access_token');
-    }
-
-    if(req.body.email == undefined) {
-        res.status(400).send('email_required');
-        return;
-    }
-
-    if(req.body.uuid == undefined) {
-        res.status(400).send('uuid_required');
-        return;
-    }
-
-    const email = req.body.email;
-    const uuid = req.body.uuid;
-
-    if(uuid.length != 32) {
-        res.status(400).send('invalid_uuid_length');
-        return;
-    }
-
-    syscon.delete(email, uuid)
-    .then((result) => {
-        if(result.status == 1) {
-            logger.log("DELETE_SUCCEEDED, "+email+", "+uuid);
-            res.status(200).send();
+        if(err.message=="jwt expired") {
+            logger.log("got_expired_token: "+token);
+            res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
+            return res.status(401).send('expired_access_token');
         }
         else {
-            logger.log("DELETE_FAILED, "+email+", "+uuid);
-            res.status(400).send();
+            logger.warn("got_invalid_token:" +token);
+            res.setHeader('WWW-Authenticate', 'Bearer error="invalid_access_token"');
+            return res.status(401).send('invalid_access_token');
+        }
+    }
+
+    if(req.body.predelid == undefined) {
+        res.status(400).send('predelid_required');
+        return;
+    }
+
+    const predelid = req.body.predelid;
+
+    syscon.delete(predelid)
+    .then((result) => {
+        if(result.status != 1 || result.status == undefined) {
+            logger.log("DELETE_FAILED, "+ predelid);
+            switch(result.status) {
+                case -1:
+                    //失敗
+                    return res.status(400).send("failed");
+                case -2:
+                    //データが存在しない
+                    return res.status(400).send("notfound");
+                    break;
+                case -3:
+                    //期限切れ
+                    return res.status(400).send("expired");
+                default:
+                    //例外
+                    return res.status(500).send("unexpected");
+            }
+        }
+        else {
+            logger.log("DELETE_SUCCEEDED, "+predelid);
+            return res.status(200).send("succeeded");
         }
     })
     .catch((err) => {
-        res.status(500).send(err);
+        return res.status(500).send(err);
     })
 });
 
@@ -298,7 +371,7 @@ app.post('/api/pre', (req, res) => {
     try {
         decoded = jwt.verify(token, pubkey);
     } catch (err) {
-        if(err.message="jwt expired") {
+        if(err.message=="jwt expired") {
             logger.log("got_expired_token: "+token);
             res.setHeader('WWW-Authenticate', 'Bearer realm="expired_access_token"');
             return res.status(401).send('expired_access_token');
@@ -340,8 +413,8 @@ app.post('/api/pre', (req, res) => {
                     return res.status(400).send("failed");
                 case -3:
                     //失敗。すでに仮登録されている。セキュリティ上の理由により200を返す。
-                    const mail = mailer.mail_failed(email_from, email);
-                    mailer.sendPreregisterVerifyEmail(mail);
+                    const mail = mailer.mail_register_failed(email_from, email);
+                    mailer.send(mail);
                     return res.status(200).send("succeeded");
                 case -100:
                     //失敗。サーバ側例外エラー。
@@ -350,8 +423,8 @@ app.post('/api/pre', (req, res) => {
         }
         else {
             logger.log("PREREGISTER_SUCCEEDED, "+email+", "+uuid+', '+ result.preregid);
-            const mail = mailer.mail_succeeded(email_from, email, result.preregid);
-            mailer.sendPreregisterVerifyEmail(mail);
+            const mail = mailer.mail_register_succeeded(email_from, email, result.preregid);
+            mailer.send(mail);
             return res.status(200).send("succeeded");
         }
     })
@@ -382,9 +455,9 @@ app.listen(apiport, () => {
         " #####    ######    ####   ###  ##   #####     ####   ### ###           ###  ##  ####      ######\n",
         '---------------------------------------Under construction-------------------------------------\n'
     );
-
+    console.log("Copyright (c) 2024-2025 mam1zu. All rights reserved.");
     console.log("Developed by mam1zu(mam1zu.piyo@gmail.com)");
-    console.log("This API server is under construction");
+    console.log("This system is under construction, please report if you encountered any problem.");
     logger = new Logger(logpath);
     if(logger == null) {
         console.error("Failed to start logging, startup aborted!");

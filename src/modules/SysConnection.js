@@ -1,5 +1,6 @@
 const net = require('net');
 const Logger = require('./Logger');
+const e = require('express');
 
 class SysConnection {
     port;
@@ -194,7 +195,38 @@ class SysConnection {
         })
     }
 
-    delete(email, uuid) {
+    predelete(email) {
+        return new Promise((resolve, reject) => {
+            setTimeout(() => {
+                reject('timeout');
+            }, 3000);
+
+            let req_json = {
+                "method": "PRDT",
+                "email": email
+            };
+
+            let res_json = undefined;
+
+            this.sock.write(JSON.stringify(req_json));
+            this.sock.once('data', (data) => {
+                res_json = JSON.parse(data);
+                if(res_json == undefined) {
+                    reject();
+                }
+                else {
+                    if(req_json.method == "PRDT" && req_json.email == email) {
+                        resolve(res_json);
+                    }
+                    else {
+                        reject();
+                    }
+                }
+            });
+        });
+    }
+
+    delete(predelid) {
         return new Promise((resolve, reject) => {
             setTimeout(() => {
                 reject('timeout')
@@ -202,8 +234,7 @@ class SysConnection {
 
             let req_json = {
                 "method": "DELT",
-                "email": email,
-                "uuid": uuid,
+                "predelid": predelid
             };
 
             let res_json = undefined;
@@ -216,7 +247,7 @@ class SysConnection {
                 }
                 else {
                     console.log(res_json);
-                    if(res_json.method=="DELT" && res_json.email==email && res_json.uuid==uuid) {
+                    if(res_json.method=="DELT" && res_json.predelid == predelid) {
                         resolve(res_json);
                     }
                     else {
